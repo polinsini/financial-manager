@@ -18,15 +18,13 @@ import { db, auth } from "../firebase";
 
 export const ProfilePage: React.FC = () => {
   const currencies = useAppSelector(selectCurrencies);
-
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const user = useAppSelector(selectUser);
+  const selectedCurrency = useAppSelector(selectCurrency);
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [currency, setCurrency] = useState<string>(
-    useAppSelector(selectCurrency),
-  );
+  const [currency, setCurrency] = useState<string>(selectedCurrency);
   const [createdAt, setCreatedAt] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -44,22 +42,28 @@ export const ProfilePage: React.FC = () => {
 
     const fetchUserData = async () => {
       try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const data = userDoc.data();
           setName(data.name || user.displayName || "");
           setEmail(data.email || user.email || "");
-          setCurrency(data.currency || "USD");
+          setCurrency(data.currency || selectedCurrency || "USD");
           setCreatedAt(data.createdAt?.toDate().toLocaleDateString() || "");
         } else {
-          dispatch(
-            addNotification({
-              message: "Данные пользователя не найдены",
-              type: "error",
-            }),
-          );
+          // Create initial user document if it doesn't exist
+          await updateDoc(userDocRef, {
+            name: user.displayName || "",
+            email: user.email || "",
+            currency: selectedCurrency || "USD",
+            createdAt: new Date(),
+          });
+          setName(user.displayName || "");
+          setEmail(user.email || "");
+          setCurrency(selectedCurrency || "USD");
+          setCreatedAt(new Date().toLocaleDateString());
         }
-      } catch {
+      } catch (error) {
         dispatch(
           addNotification({
             message: "Ошибка загрузки данных профиля",
@@ -72,7 +76,7 @@ export const ProfilePage: React.FC = () => {
     };
 
     fetchUserData();
-  }, [user, dispatch, navigate]);
+  }, [user, dispatch, navigate, selectedCurrency]);
 
   const handleSave = async () => {
     if (!user || !name || !currency) {
@@ -91,18 +95,31 @@ export const ProfilePage: React.FC = () => {
     );
 
     try {
-      await updateDoc(doc(db, "users", user.uid), {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
         name,
         currency,
-        email: user.email,
+        email,
+        updatedAt: new Date(),
       });
 
       await updateProfile(auth.currentUser!, { displayName: name });
 
+      // Update Redux state
+      dispatch({
+        type: "auth/updateUser",
+        payload: {
+          ...user,
+          displayName: name,
+          currency,
+          email,
+        },
+      });
+
       dispatch(
         addNotification({ message: "Профиль обновлен", type: "success" }),
       );
-    } catch {
+    } catch (error) {
       dispatch(
         addNotification({
           message: "Ошибка обновления профиля",
@@ -133,7 +150,12 @@ export const ProfilePage: React.FC = () => {
           placeholder="Ваше имя"
           required
         />
-        <Input label="Email" value={email} placeholder="Ваш email" />
+        <Input
+          label="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Ваш email"
+        />
         <div className="mb-4">
           <label className="block text-white text-sm font-bold mb-2">
             Валюта
