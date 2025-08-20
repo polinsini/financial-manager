@@ -25,7 +25,7 @@ export const ProfilePage: React.FC = () => {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [currency, setCurrency] = useState<string>(selectedCurrency);
-  const [createdAt, setCreatedAt] = useState<string>("");
+  //const [createdAt, setCreatedAt] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -49,19 +49,16 @@ export const ProfilePage: React.FC = () => {
           setName(data.name || user.displayName || "");
           setEmail(data.email || user.email || "");
           setCurrency(data.currency || selectedCurrency || "USD");
-          setCreatedAt(data.createdAt?.toDate().toLocaleDateString() || "");
         } else {
-          // Create initial user document if it doesn't exist
           await updateDoc(userDocRef, {
             name: user.displayName || "",
             email: user.email || "",
-            currency: selectedCurrency || "USD",
+            currency: selectedCurrency || "RUB",
             createdAt: new Date(),
           });
           setName(user.displayName || "");
           setEmail(user.email || "");
-          setCurrency(selectedCurrency || "USD");
-          setCreatedAt(new Date().toLocaleDateString());
+          setCurrency(selectedCurrency || "RUB");
         }
       } catch (error) {
         dispatch(
@@ -70,6 +67,7 @@ export const ProfilePage: React.FC = () => {
             type: "error",
           }),
         );
+        console.log(error);
       } finally {
         setLoading(false);
       }
@@ -105,7 +103,6 @@ export const ProfilePage: React.FC = () => {
 
       await updateProfile(auth.currentUser!, { displayName: name });
 
-      // Update Redux state
       dispatch({
         type: "auth/updateUser",
         payload: {
@@ -119,7 +116,7 @@ export const ProfilePage: React.FC = () => {
       dispatch(
         addNotification({ message: "Профиль обновлен", type: "success" }),
       );
-    } catch (error) {
+    } catch {
       dispatch(
         addNotification({
           message: "Ошибка обновления профиля",
@@ -174,7 +171,7 @@ export const ProfilePage: React.FC = () => {
             ))}
           </select>
         </div>
-        <Input label="Дата регистрации" value={createdAt} disabled />
+
         <div className="flex justify-between mt-4">
           <Button
             bgColor="bg-gray-700"

@@ -16,15 +16,15 @@ import { initAuth } from "./store/slices/authSlice";
 import { HomePage } from "./pages/Home";
 import { TransactionPage } from "./pages/TransactionPage";
 import { ProfilePage } from "./pages/Profile";
-import { handleGoogleRedirectResult } from "./store/slices/authSlice";
+//import { handleGoogleRedirectResult } from "./store/slices/authSlice";
 export const App: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectUser);
 
   useEffect(() => {
-  dispatch(handleGoogleRedirectResult()).finally(() => {
-      dispatch(initAuth());
-    });
+    //dispatch(handleGoogleRedirectResult()).finally(() => {
+    dispatch(initAuth());
+    //});
   }, [dispatch]);
 
   return (

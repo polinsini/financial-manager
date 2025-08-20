@@ -59,13 +59,14 @@ export const AddTransactionForm: React.FC<AddTransactionFormProps> = ({
       );
 
       onClose();
-    } catch {
+    } catch (error) {
       dispatch(
         addNotification({
           message: "Ошибка добавления транзакции",
           type: "error",
         }),
       );
+      console.log(error);
     } finally {
       setTimeout(() => dispatch(removeNotification(id)), 5000);
     }

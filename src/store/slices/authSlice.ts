@@ -1,22 +1,19 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import { getDoc, doc } from "firebase/firestore";
-import { db, auth, analytics } from "../../firebase";
+import { getDoc, doc, setDoc } from "firebase/firestore";
+import { db, auth } from "../../firebase";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider,
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { logEvent } from "firebase/analytics";
 import type { User } from "firebase/auth";
-import { addNotification } from "./notificationSlice";
+import { addNotification, NotificationState } from "./notificationSlice";
 import { logToFirestore } from "../../logers";
 import { FinanceState } from "./financeSlice";
-import { NotificationState } from "./notificationSlice";
 
 type Currency = { code: string; symbol: string };
 interface FirebaseError extends Error {
@@ -46,7 +43,6 @@ export interface SerializableUser {
   email: string | null;
   displayName: string | null;
   currency?: string;
-  currencySymbol?: string;
 }
 
 export type AuthState = {
@@ -90,26 +86,24 @@ export const initAuth = createAsyncThunk<
         if (user) {
           try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              const currency = userData.currency || "RUB";
-              const currencyObj = initialState.currencies.find(
-                (c) => c.code === currency,
-              );
-              resolve({
-                uid: user.uid,
+            const currency = userDoc.exists()
+              ? userDoc.data().currency || "RUB"
+              : "RUB";
+            initialState.currencies.find((c) => c.code === currency);
+            if (!userDoc.exists()) {
+              await setDoc(doc(db, "users", user.uid), {
                 email: user.email,
                 displayName: user.displayName,
                 currency,
-                currencySymbol: currencyObj ? currencyObj.symbol : "₽",
-              });
-            } else {
-              resolve({
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName,
+                createdAt: new Date().toISOString(),
               });
             }
+            resolve({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              currency,
+            });
           } catch (error: unknown) {
             const message = getErrorMessage(error);
             await logToFirestore({
@@ -169,6 +163,23 @@ export const register = createAsyncThunk<
     );
     await updateProfile(userCredential.user, { displayName: name });
 
+    await new Promise<void>((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user && user.uid === userCredential.user.uid) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+
+    const currency = "RUB";
+    await setDoc(doc(db, "users", userCredential.user.uid), {
+      email: userCredential.user.email,
+      displayName: name,
+      currency,
+      createdAt: new Date().toISOString(),
+    });
+
     await logToFirestore({
       userId: userCredential.user.uid,
       type: "info",
@@ -184,6 +195,7 @@ export const register = createAsyncThunk<
       uid: userCredential.user.uid,
       email: userCredential.user.email,
       displayName: userCredential.user.displayName,
+      currency,
     };
   } catch (error: unknown) {
     const message = isFirebaseError(error)
@@ -220,6 +232,28 @@ export const login = createAsyncThunk<
       password,
     );
 
+    await new Promise<void>((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user && user.uid === userCredential.user.uid) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+
+    const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+    const currency = userDoc.exists()
+      ? userDoc.data().currency || "RUB"
+      : "RUB";
+    if (!userDoc.exists()) {
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        currency,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     await logToFirestore({
       userId: userCredential.user.uid,
       type: "info",
@@ -233,6 +267,7 @@ export const login = createAsyncThunk<
       uid: userCredential.user.uid,
       email: userCredential.user.email,
       displayName: userCredential.user.displayName,
+      currency,
     };
   } catch (error: unknown) {
     const message = isFirebaseError(error)
@@ -259,100 +294,75 @@ export const login = createAsyncThunk<
 });
 
 export const loginWithGoogle = createAsyncThunk<
-  void,
+  SerializableUser,
   void,
   { rejectValue: string }
 >("auth/loginWithGoogle", async (_, { dispatch }) => {
   dispatch(addNotification({ message: "Вход через Google...", type: "info" }));
   try {
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    await signInWithRedirect(auth, provider);
+    const userCredential = await signInWithPopup(auth, provider);
 
-    await logToFirestore({
-      type: "info",
-      message: "Инициирован вход через Google",
-      context: { action: "loginWithGoogle" },
-    });
-  } catch (error: unknown) {
-    const message = isFirebaseError(error)
-      ? error.code === "auth/redirect-cancelled-by-user"
-        ? "Вход через Google отменен"
-        : error.code === "auth/popup-blocked"
-          ? "Всплывающее окно заблокировано браузером"
-          : "Не удалось инициировать вход через Google"
-      : "Не удалось инициировать вход через Google";
-
-    await logToFirestore({
-      type: "error",
-      message,
-      details: {
-        error: getErrorMessage(error),
-        code: isFirebaseError(error) ? error.code : "unknown",
-      },
-      context: { action: "loginWithGoogle" },
+    await new Promise<void>((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user && user.uid === userCredential.user.uid) {
+          unsubscribe();
+          resolve();
+        }
+      });
     });
 
-    dispatch(addNotification({ message, type: "error" }));
-    throw error;
-  }
-});
+    const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+    let currency = "RUB";
 
-export const handleGoogleRedirectResult = createAsyncThunk<
-  SerializableUser | null,
-  void,
-  { rejectValue: string }
->("auth/handleGoogleRedirectResult", async (_, { dispatch }) => {
-  try {
-    const result = await getRedirectResult(auth);
-    if (!result) {
-      console.log("No redirect result");
-      return null;
-    }
-    if (result?.user) {
-      const user = result.user;
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      let currency = "RUB";
-      let currencySymbol = "₽";
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        currency = userData.currency || "RUB";
-        const currencyObj = initialState.currencies.find(
-          (c) => c.code === currency,
-        );
-        currencySymbol = currencyObj ? currencyObj.symbol : "₽";
-      }
-
-      await logToFirestore({
-        userId: user.uid,
-        type: "info",
-        message: "Вход через Google успешен",
-        context: { action: "handleGoogleRedirectResult", email: user.email },
+    if (!userDoc.exists()) {
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        currency,
+        createdAt: new Date().toISOString(),
       });
 
-      dispatch(
-        addNotification({
-          message: "Вход через Google успешен",
-          type: "success",
-        }),
-      );
-      logEvent(analytics, "login", { method: "google" });
+      await logToFirestore({
+        userId: userCredential.user.uid,
+        type: "info",
+        message: "Пользователь зарегистрирован через Google",
+        context: {
+          action: "registerWithGoogle",
+          email: userCredential.user.email,
+        },
+      });
+    } else {
+      currency = userDoc.data().currency || "RUB";
 
-      return {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        currency,
-        currencySymbol,
-      };
+      await logToFirestore({
+        userId: userCredential.user.uid,
+        type: "info",
+        message: "Пользователь вошел через Google",
+        context: {
+          action: "loginWithGoogle",
+          email: userCredential.user.email,
+        },
+      });
     }
-    return null;
+
+    dispatch(
+      addNotification({
+        message: "Вход через Google успешен",
+        type: "success",
+      }),
+    );
+
+    return {
+      uid: userCredential.user.uid,
+      email: userCredential.user.email!,
+      displayName: userCredential.user.displayName,
+      currency,
+    };
   } catch (error: unknown) {
     const message = isFirebaseError(error)
-      ? error.code === "auth/redirect-cancelled-by-user"
-        ? "Вход через Google отменен"
-        : "Не удалось войти через Google"
-      : "Не удалось войти через Google";
+      ? "Ошибка входа через Google"
+      : "Ошибка входа";
 
     await logToFirestore({
       type: "error",
@@ -361,7 +371,7 @@ export const handleGoogleRedirectResult = createAsyncThunk<
         error: getErrorMessage(error),
         code: isFirebaseError(error) ? error.code : "unknown",
       },
-      context: { action: "handleGoogleRedirectResult" },
+      context: { action: "loginWithGoogle" },
     });
 
     dispatch(addNotification({ message, type: "error" }));
@@ -414,7 +424,10 @@ const authSlice = createSlice({
           state.authLoading = false;
           if (action.payload) {
             state.currency = action.payload.currency || "RUB";
-            state.currencySymbol = action.payload.currencySymbol || "₽";
+            const currencyObj = state.currencies.find(
+              (c) => c.code === state.currency,
+            );
+            state.currencySymbol = currencyObj ? currencyObj.symbol : "₽";
           }
         },
       )
@@ -432,6 +445,11 @@ const authSlice = createSlice({
         (state, action: PayloadAction<SerializableUser>) => {
           state.user = action.payload;
           state.loading = false;
+          state.currency = action.payload.currency || "RUB";
+          const currencyObj = state.currencies.find(
+            (c) => c.code === state.currency,
+          );
+          state.currencySymbol = currencyObj ? currencyObj.symbol : "₽";
         },
       )
       .addCase(register.rejected, (state, action) => {
@@ -447,6 +465,11 @@ const authSlice = createSlice({
         (state, action: PayloadAction<SerializableUser>) => {
           state.user = action.payload;
           state.loading = false;
+          state.currency = action.payload.currency || "RUB";
+          const currencyObj = state.currencies.find(
+            (c) => c.code === state.currency,
+          );
+          state.currencySymbol = currencyObj ? currencyObj.symbol : "₽";
         },
       )
       .addCase(login.rejected, (state, action) => {
@@ -458,28 +481,9 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(loginWithGoogle.fulfilled, (state) => {
-        state.loading = false;
+        state.loading = true;
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(handleGoogleRedirectResult.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(
-        handleGoogleRedirectResult.fulfilled,
-        (state, action: PayloadAction<SerializableUser | null>) => {
-          state.loading = false;
-          if (action.payload) {
-            state.user = action.payload;
-            state.currency = action.payload.currency || "RUB";
-            state.currencySymbol = action.payload.currencySymbol || "₽";
-          }
-        },
-      )
-      .addCase(handleGoogleRedirectResult.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

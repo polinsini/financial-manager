@@ -1,52 +1,22 @@
+import { addDoc, collection } from "firebase/firestore";
 import { db } from "./firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { useAppSelector } from "./store/hooks";
-import { selectUser } from "./store/slices/authSlice";
 
-type LogMetadata = {
-  [key: string]: unknown;
-};
-
-interface LogEntry {
+interface LogData {
   userId?: string;
-  type: "error" | "info" | "warning";
+  type: string;
   message: string;
-  details?: LogMetadata;
-  context?: LogMetadata;
+  details?: object;
+  context?: object;
 }
 
-export const logToFirestore = async (log: LogEntry): Promise<void> => {
-  try {
-    const logId = Date.now().toString();
-    await setDoc(doc(db, "logs", logId), {
-      ...log,
-      timestamp: serverTimestamp(),
+export async function logToFirestore(data: LogData, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    await addDoc(collection(db, "logs"), {
+      ...data,
+      timestamp: new Date().toISOString(),
     });
-  } catch (err) {
-    console.error(
-      "Failed to log to Firestore:",
-      err instanceof Error ? err.message : String(err),
-    );
+    return;
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-};
-
-export const useLogger = () => {
-  const user = useAppSelector(selectUser);
-
-  const log = async (
-    type: LogEntry["type"],
-    message: string,
-    details?: LogMetadata,
-    context?: LogMetadata,
-  ): Promise<void> => {
-    await logToFirestore({
-      userId: user?.uid,
-      type,
-      message,
-      details,
-      context,
-    });
-  };
-
-  return { log };
-};
+}
