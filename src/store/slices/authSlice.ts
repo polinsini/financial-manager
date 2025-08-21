@@ -481,7 +481,7 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(loginWithGoogle.fulfilled, (state) => {
-        state.loading = true;
+        state.loading = false;
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
         state.loading = false;
