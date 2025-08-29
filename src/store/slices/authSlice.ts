@@ -410,7 +410,16 @@ export const logout = createAsyncThunk<void, void, { rejectValue: string }>(
 const authSlice = createSlice({
   name: "auth",
   initialState,
-  reducers: {},
+  reducers: {
+    updateUser(state, action: PayloadAction<SerializableUser>) {
+      state.user = action.payload;
+      state.currency = action.payload.currency || "RUB";
+      const currencyObj = state.currencies.find(
+        (c) => c.code === state.currency,
+      );
+      state.currencySymbol = currencyObj ? currencyObj.symbol : "₽";
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(initAuth.pending, (state) => {
@@ -477,16 +486,39 @@ const authSlice = createSlice({
         state.error = action.error.message || "Ошибка входа";
       })
       .addCase(loginWithGoogle.pending, (state) => {
-        state.loading = true;
+        state.loading = false;
         state.error = null;
       })
-      .addCase(loginWithGoogle.fulfilled, (state) => {
-        state.loading = false;
-      })
+      .addCase(
+        loginWithGoogle.fulfilled,
+        (state, action: PayloadAction<SerializableUser>) => {
+          state.user = action.payload;
+          state.loading = false;
+          state.currency = action.payload.currency || "RUB";
+          const currencyObj = state.currencies.find(
+            (c) => c.code === state.currency,
+          );
+          state.currencySymbol = currencyObj ? currencyObj.symbol : "₽";
+        },
+      )
       .addCase(loginWithGoogle.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
+      /*
+      .addCase(handleGoogleRedirectResult.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(handleGoogleRedirectResult.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.loading = false;
+      })
+      .addCase(handleGoogleRedirectResult.rejected, (state, action) => {
+        state.error = action.payload as string;
+        state.loading = false;
+      })
+        */
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.currency = "RUB";

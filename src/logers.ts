@@ -16,7 +16,5 @@ export async function logToFirestore(data: LogData, retries = 3) {
       timestamp: new Date().toISOString(),
     });
     return;
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }

@@ -56,7 +56,6 @@ describe("AddTransactionForm", () => {
       screen.getByPlaceholderText("Например: Еда, Зарплата"),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Сумма")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("0")).toBeInTheDocument();
     expect(screen.getByText("Доход")).toBeInTheDocument();
     expect(screen.getByText("Расход")).toBeInTheDocument();
     expect(screen.getByText("Отмена")).toBeInTheDocument();

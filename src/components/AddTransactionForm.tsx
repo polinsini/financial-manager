@@ -27,13 +27,14 @@ export const AddTransactionForm: React.FC<AddTransactionFormProps> = ({
 
   const [type, setType] = useState<"income" | "expense">("expense");
   const [category, setCategory] = useState("");
-  const [amount, setAmount] = useState<number>(0);
+  const [amountString, setAmount] = useState<string>("");
   const [date, setDate] = useState<string>(
     new Date().toISOString().split("T")[0],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amount = Number(amountString);
     if (!category || amount <= 0 || !user) {
       dispatch(
         addNotification({
@@ -73,7 +74,7 @@ export const AddTransactionForm: React.FC<AddTransactionFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-90 z-50">
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-4 text-white">
           Добавить транзакцию
@@ -113,8 +114,8 @@ export const AddTransactionForm: React.FC<AddTransactionFormProps> = ({
           <Input
             label="Сумма"
             type="number"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
+            value={amountString}
+            onChange={(e) => setAmount(e.target.value)}
             placeholder="Сумма"
             required
           />

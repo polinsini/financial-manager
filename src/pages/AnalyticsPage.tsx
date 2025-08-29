@@ -1,3 +1,5 @@
+// AnalyticsPage.tsx
+
 import { useEffect, useState } from "react";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
 import { selectUser } from "../store/slices/authSlice";

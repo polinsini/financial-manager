@@ -81,7 +81,7 @@ export const Notification: React.FC = () => {
         return (
           <div
             key={id}
-            className={`fixed right-5 top-5 mb-4 flex w-full max-w-xs items-center rounded-lg bg-white p-4 shadow dark:bg-gray-800 ${textClass}`}
+            className={`fixed right-5 top-5 mb-4 flex w-full max-w-xs items-center rounded-lg bg-white p-4 shadow dark:bg-gray-800 ${textClass} z-[9999]`}
             role="alert"
           >
             <div
