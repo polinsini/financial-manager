@@ -26,7 +26,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Cache node_modules and pnpm store
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-modules
         with:
           path: |
@@ -37,7 +37,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Upload node_modules and pnpm store as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: node-modules
@@ -60,7 +60,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Download dependencies artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: node-modules
           path: .
@@ -91,7 +91,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Download dependencies artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: node-modules
           path: .
@@ -100,7 +100,7 @@ jobs:
         run: pnpm run build
 
       - name: Upload dist as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: dist
@@ -113,7 +113,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Download built assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
@@ -124,7 +124,7 @@ jobs:
           cp -r dist/* public/
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
